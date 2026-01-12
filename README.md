@@ -84,19 +84,49 @@ Cada arquivo contém colunas:
 
 ## 🚀 Deploy no Render
 
-Para fazer deploy no Render, configure:
+### ⚠️ IMPORTANTE: Use Background Worker, não Web Service!
 
-1. **Build Command**: 
-   ```bash
-   pip install -r requirements.txt && playwright install chromium
-   ```
+Este bot **NÃO precisa de porta** porque é um processo em background. Configure como **Background Worker**.
 
-2. **Start Command**:
-   ```bash
-   python main.py --handles-file handles.txt --headless --out-dir data_out
-   ```
+### Opção 1: Usando render.yaml (Recomendado)
+
+1. Conecte seu repositório Git no Render
+2. O Render detectará automaticamente o arquivo `render.yaml` e criará o serviço como Background Worker
+3. Certifique-se de que o arquivo `handles.txt` está no repositório
+
+### Opção 2: Configuração Manual
+
+1. No dashboard do Render, clique em **"New +"** → **"Background Worker"** (NÃO escolha Web Service!)
+
+2. Configure:
+   - **Name**: `bot-seguidores`
+   - **Environment**: `Python 3`
+   - **Build Command**: 
+     ```bash
+     pip install -r requirements.txt && playwright install chromium
+     ```
+   - **Start Command**:
+     ```bash
+     python main.py --handles-file handles.txt --headless --out-dir data_out
+     ```
 
 3. **Variáveis de Ambiente** (se necessário):
    - Configure conforme suas necessidades
 
-4. **Tipo de Serviço**: Web Service ou Background Worker (dependendo se você quer que rode continuamente)
+### 🔧 Solução para erro de porta
+
+Se você ver o erro "No open ports detected":
+- **Delete o serviço atual** (se foi criado como Web Service)
+- **Crie um novo serviço** selecionando **"Background Worker"** (não Web Service)
+- Ou use o arquivo `render.yaml` que já está configurado corretamente
+
+### 💾 Persistência de Dados no Render
+
+⚠️ **IMPORTANTE**: O Render tem sistema de arquivos **efêmero** - arquivos criados são perdidos quando o serviço reinicia.
+
+**Soluções:**
+1. **Volumes Persistentes** (Recomendado): Configure um Disk Volume no Render para persistir os arquivos parquet
+2. **Storage Externo**: Use S3, Google Cloud Storage, etc. (veja `RENDER-LIMITACOES.md`)
+3. **Apenas Logs**: Se só precisa monitorar, use apenas os logs do Render
+
+📖 Veja `RENDER-LIMITACOES.md` para detalhes completos sobre persistência de dados.

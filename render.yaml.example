@@ -1,0 +1,20 @@
+# Exemplo de render.yaml com Volume Persistente
+# 
+# Para usar volumes persistentes:
+# 1. Crie um Volume no dashboard do Render (Volumes → Create Volume)
+# 2. Configure o mountPath e o nome do volume abaixo
+# 3. Renomeie este arquivo para render.yaml (ou adicione a seção disk ao render.yaml existente)
+
+services:
+  - type: worker
+    name: bot-seguidores
+    env: python
+    buildCommand: pip install -r requirements.txt && playwright install chromium
+    startCommand: python main.py --handles-file handles.txt --headless --out-dir /opt/render/project/src/data_out
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    # Descomente a seção abaixo para usar volume persistente:
+    # disk:
+    #   name: bot-seguidores-data  # Nome do volume criado no Render
+    #   mountPath: /opt/render/project/src/data_out  # Caminho onde o volume será montado
