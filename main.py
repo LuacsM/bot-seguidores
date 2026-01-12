@@ -113,12 +113,12 @@ def append_parquet_partitioned(out_dir: str, data_hora_iso: str, perfil: str, se
     base = Path(out_dir)
     path = base / f"perfil={perfil}" / f"data={date}.parquet"
     
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            log_print(f"   📁 Diretório criado/verificado: {path.parent}")
-        except Exception as e:
-            log_print(f"   ✖ Erro ao criar diretório {path.parent}: {e}")
-            raise
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        log_print(f"   📁 Diretório criado/verificado: {path.parent}")
+    except Exception as e:
+        log_print(f"   ✖ Erro ao criar diretório {path.parent}: {e}")
+        raise
 
     df_new = pd.DataFrame([{
         "data_hora": data_hora_iso,
