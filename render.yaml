@@ -1,0 +1,9 @@
+services:
+  - type: worker
+    name: bot-seguidores
+    env: python
+    buildCommand: pip install -r requirements.txt && playwright install chromium
+    startCommand: python main.py --handles-file handles.txt --headless --out-dir data_out
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
