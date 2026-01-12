@@ -15,8 +15,31 @@ def log_print(*args, **kwargs):
     print(*args, **kwargs)
     sys.stdout.flush()
 
+import os
 import pandas as pd
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeoutError
+
+# Carrega variáveis de ambiente do arquivo .env (se existir)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # python-dotenv não instalado, tenta carregar manualmente
+    env_file = Path(__file__).parent / '.env'
+    if env_file.exists():
+        with open(env_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip()
+
+# Importa módulo de storage S3
+try:
+    from storage_s3 import append_parquet_s3
+    S3_AVAILABLE = True
+except ImportError:
+    S3_AVAILABLE = False
 
 
 BLASTUP_URL = "https://blastup.com/instagram-follower-count?{}"
@@ -72,6 +95,24 @@ def extract_followers_from_page(page) -> Optional[int]:
     except Exception:
         pass
 
+    # detecta se perfil não existe ou foi removido
+    try:
+        body_text_lower = page.locator("body").inner_text(timeout=2000).lower()
+        error_indicators = [
+            "user not found",
+            "page not found",
+            "404",
+            "this page isn't available",
+            "perfil não encontrado",
+            "usuário não encontrado",
+            "sorry, this page isn't available",
+        ]
+        for indicator in error_indicators:
+            if indicator in body_text_lower:
+                return -1  # Código especial para perfil não encontrado
+    except Exception:
+        pass
+
     odo = page.locator("#odometer")
     if odo.count() == 0:
         return None
@@ -103,11 +144,18 @@ def extract_followers_from_page(page) -> Optional[int]:
 
 # ---------------- PARQUET (append particionado) ---------------- #
 
-def append_parquet_partitioned(out_dir: str, data_hora_iso: str, perfil: str, seguidores: int) -> Path:
+def append_parquet_partitioned(out_dir: str, data_hora_iso: str, perfil: str, seguidores: int) -> str:
     """
-    Salva em: out_dir/perfil=<perfil>/data=<YYYY-MM-DD>.parquet
-    Append lendo o parquet do dia (arquivo pequeno) e sobrescrevendo.
+    Salva parquet no S3 se configurado, senão salva localmente.
+    Detecta automaticamente baseado em variáveis de ambiente.
     """
+    # Verifica se deve usar S3
+    if S3_AVAILABLE and os.getenv('AWS_ACCESS_KEY_ID') and os.getenv('AWS_S3_BUCKET'):
+        bucket = os.getenv('AWS_S3_BUCKET')
+        s3_key = os.getenv('AWS_S3_KEY', 'bot-seguidores')
+        return append_parquet_s3(bucket, s3_key, data_hora_iso, perfil, seguidores, log_print)
+    
+    # Fallback: salva localmente
     date = data_hora_iso[:10]  # YYYY-MM-DD
 
     base = Path(out_dir)
@@ -145,7 +193,7 @@ def append_parquet_partitioned(out_dir: str, data_hora_iso: str, perfil: str, se
     try:
         df.to_parquet(path, engine="pyarrow", compression="snappy", index=False)
         log_print(f"   💾 Arquivo salvo: {path} ({path.stat().st_size} bytes)")
-        return path
+        return str(path)
     except Exception as e:
         log_print(f"   ✖ Erro ao salvar parquet {path}: {e}")
         raise
@@ -200,6 +248,14 @@ def main():
     log_print(f"📂 Diretório de saída: {args.out_dir}")
     log_print(f"🌐 Modo headless: {args.headless}")
     log_print(f"⏱️  Espera entre ciclos: {args.sleep_between_cycles}s")
+    
+    # Detecta storage configurado
+    if S3_AVAILABLE and os.getenv('AWS_ACCESS_KEY_ID') and os.getenv('AWS_S3_BUCKET'):
+        storage_type = f"S3 (bucket: {os.getenv('AWS_S3_BUCKET')})"
+    else:
+        storage_type = "Local (dados serão perdidos ao reiniciar)"
+    
+    log_print(f"💾 Storage: {storage_type}")
     log_print("=" * 60)
     log_print("Se aparecer Cloudflare, resolva manualmente na 1ª execução (janela do navegador).\n")
 
@@ -255,7 +311,16 @@ def main():
                             time.sleep(3)
                             seguidores = extract_followers_from_page(page)
 
-                        if seguidores is not None:
+                        if seguidores == -1:
+                            # Perfil não encontrado (mudou de nick ou foi removido)
+                            log_print(f"   ⚠️  PERFIL NÃO ENCONTRADO: @{perfil}")
+                            log_print(f"   💡 Possíveis causas:")
+                            log_print(f"      - Username mudou (verifique no Instagram)")
+                            log_print(f"      - Perfil foi removido ou desativado")
+                            log_print(f"      - URL incorreta")
+                            log_print(f"   📝 Ação: Atualize o username no arquivo handles.txt se necessário")
+                            # Não salva nada, apenas loga o aviso e continua
+                        elif seguidores is not None:
                             log_print(f"   ✅ Seguidores encontrados: {seguidores}")
                             out_path = append_parquet_partitioned(args.out_dir, ts, perfil, seguidores)
                             log_print(f"   ✔ Seguidores: {seguidores} | salvo em: {out_path}")

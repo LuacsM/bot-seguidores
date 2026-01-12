@@ -124,9 +124,17 @@ Se você ver o erro "No open ports detected":
 
 ⚠️ **IMPORTANTE**: O Render tem sistema de arquivos **efêmero** - arquivos criados são perdidos quando o serviço reinicia.
 
-**Soluções:**
-1. **Volumes Persistentes** (Recomendado): Configure um Disk Volume no Render para persistir os arquivos parquet
-2. **Storage Externo**: Use S3, Google Cloud Storage, etc. (veja `RENDER-LIMITACOES.md`)
-3. **Apenas Logs**: Se só precisa monitorar, use apenas os logs do Render
+**Solução: AWS S3** ⭐
 
-📖 Veja `RENDER-LIMITACOES.md` para detalhes completos sobre persistência de dados.
+O bot está configurado para salvar automaticamente no **AWS S3** quando as credenciais estiverem configuradas.
+
+**Configuração:**
+1. Adicione as variáveis de ambiente no Render (veja `CONFIGURAR-S3.md`)
+2. O bot detectará automaticamente e começará a salvar no S3
+3. Os logs mostrarão: `💾 Storage: S3 (bucket: bot-seguidores-lucasm)`
+
+📖 **Veja `CONFIGURAR-S3.md`** para instruções detalhadas de configuração.
+
+**Sem S3 configurado:**
+- Os dados serão salvos localmente (perdidos ao reiniciar)
+- Útil apenas para testes
